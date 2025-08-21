@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPS – Ottelun lopputuloksen todennäköisyyslaskuri (asiantuntijamalli)</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            padding: 30px;
+            line-height: 1.4;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            box-sizing: border-box;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f7f7f7;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+        .results h2 {
+            margin-top: 0;
+            font-size: 20px;
+        }
+        .prob-row {
+            margin: 5px 0;
+            font-size: 16px;
+        }
+        .note {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>VPS – Ottelun lopputuloksen todennäköisyyslaskuri (asiantuntijamalli)</h1>
+    <p>Syötä haluamasi arvot molemmille joukkueille ja näe prosentuaaliset todennäköisyydet VPS:n voitolle, tasapelille ja tappiolle. Tämä versio käyttää asiantuntija-arvioita muuttujien vaikutuksesta: suuremmat omat arvot (laukaukset, kultaisen alueen laukaukset, taakse murtautumiset, box entryt ja yläalueen riistot) lisäävät voittomahdollisuutta, kun taas vastustajan suuremmat arvot laskevat sitä.</p>
+
+    <form id="inputForm" oninput="updatePrediction()">
+        <h2>VPS:n tilastot</h2>
+        <label for="shots_own">Laukaukset yhteensä (VPS)</label>
+        <input type="number" id="shots_own" min="0" value="12">
+
+        <label for="golden_shots_own">Kultaisen alueen laukaukset (VPS)</label>
+        <input type="number" id="golden_shots_own" min="0" value="5">
+
+        <label for="behind_volume_own">Taakse volyymi (VPS)</label>
+        <input type="number" id="behind_volume_own" min="0" value="18">
+
+        <label for="box_entry_plus">Box entryt (VPS)</label>
+        <input type="number" id="box_entry_plus" min="0" value="17">
+
+        <label for="high_recoveries_own">Yläalueen riistot (VPS)</label>
+        <input type="number" id="high_recoveries_own" min="0" value="12">
+
+        <h2>Vastustajan tilastot</h2>
+        <label for="shots_opp">Laukaukset yhteensä (Vastustaja)</label>
+        <input type="number" id="shots_opp" min="0" value="11">
+
+        <label for="golden_shots_opp">Kultaisen alueen laukaukset (Vastustaja)</label>
+        <input type="number" id="golden_shots_opp" min="0" value="4">
+
+        <label for="behind_volume_opp">Taakse volyymi (Vastustaja)</label>
+        <input type="number" id="behind_volume_opp" min="0" value="18">
+
+        <label for="box_entry_minus">Box entryt (Vastustaja)</label>
+        <input type="number" id="box_entry_minus" min="0" value="12">
+
+        <label for="high_recoveries_opp">Yläalueen riistot (Vastustaja)</label>
+        <input type="number" id="high_recoveries_opp" min="0" value="11">
+    </form>
+
+    <div class="results">
+        <h2>Todennäköisyydet</h2>
+        <div class="prob-row" id="winProb">VPS:n voiton todennäköisyys: – %</div>
+        <div class="prob-row" id="drawProb">Tasapelin todennäköisyys: – %</div>
+        <div class="prob-row" id="lossProb">VPS:n tappion todennäköisyys: – %</div>
+    </div>
+    <p class="note">Huom: Mallissa lasketaan ensiksi erot joukkueiden välillä (VPS minus vastustaja). Positiivinen ero kasvattaa voittomahdollisuuksia, negatiivinen ero pienentää niitä. Kultaisen alueen laukaukset muunnetaan prosentuaalisiksi osuuksiksi joukkueiden kaikista laukauksista.</p>
+
+    <script>
+    // Weight parameters reflecting expert judgement
+    const weights = {
+        shots: 0.8,            // Shots difference weight
+        golden: 1.0,           // Golden zone rate difference weight
+        behind: 0.7,           // Behind volume difference weight
+        box: 1.2,              // Box entry difference weight
+        high: 0.5              // High recoveries difference weight
+    };
+    // Scaling factors to normalise differences to roughly comparable ranges
+    const scales = {
+        shots: 10.0,       // typical range for shots difference
+        behind: 10.0,      // typical range for behind volume difference
+        box: 10.0,         // typical range for box entry difference
+        high: 10.0         // typical range for high recoveries difference
+    };
+    // Constant for draw exponent: calibrates probability of draws when teams are equal
+    const drawConstant = 0.86;
+
+    function computeScore() {
+        // Read inputs
+        const shotsOwn = parseFloat(document.getElementById('shots_own').value) || 0;
+        const goldenOwn = parseFloat(document.getElementById('golden_shots_own').value) || 0;
+        const behindOwn = parseFloat(document.getElementById('behind_volume_own').value) || 0;
+        const boxPlus = parseFloat(document.getElementById('box_entry_plus').value) || 0;
+        const highOwn = parseFloat(document.getElementById('high_recoveries_own').value) || 0;
+
+        const shotsOpp = parseFloat(document.getElementById('shots_opp').value) || 0;
+        const goldenOpp = parseFloat(document.getElementById('golden_shots_opp').value) || 0;
+        const behindOpp = parseFloat(document.getElementById('behind_volume_opp').value) || 0;
+        const boxMinus = parseFloat(document.getElementById('box_entry_minus').value) || 0;
+        const highOpp = parseFloat(document.getElementById('high_recoveries_opp').value) || 0;
+
+        // Compute ratios for golden zone shots (avoid division by zero)
+        let goldenRateOwn = 0;
+        let goldenRateOpp = 0;
+        if (shotsOwn > 0) {
+            goldenRateOwn = goldenOwn / shotsOwn;
+            if (goldenRateOwn > 1) goldenRateOwn = 1;
+        }
+        if (shotsOpp > 0) {
+            goldenRateOpp = goldenOpp / shotsOpp;
+            if (goldenRateOpp > 1) goldenRateOpp = 1;
+        }
+
+        // Compute differences
+        const diffShots = (shotsOwn - shotsOpp) / scales.shots;
+        const diffGolden = goldenRateOwn - goldenRateOpp;
+        const diffBehind = (behindOwn - behindOpp) / scales.behind;
+        const diffBox = (boxPlus - boxMinus) / scales.box;
+        const diffHigh = (highOwn - highOpp) / scales.high;
+
+        // Weighted sum
+        const score = weights.shots * diffShots + weights.golden * diffGolden + weights.behind * diffBehind + weights.box * diffBox + weights.high * diffHigh;
+        return score;
+    }
+
+    function updatePrediction() {
+        const score = computeScore();
+        // Raw scores for softmax: win = score, draw = drawConstant, loss = -score
+        const rawWin = score;
+        const rawDraw = drawConstant;
+        const rawLoss = -score;
+        // Softmax
+        const exps = [Math.exp(rawWin), Math.exp(rawDraw), Math.exp(rawLoss)];
+        const sum = exps[0] + exps[1] + exps[2];
+        const probWin = exps[0] / sum;
+        const probDraw = exps[1] / sum;
+        const probLoss = exps[2] / sum;
+
+        // Update display
+        document.getElementById('winProb').textContent = `VPS:n voiton todennäköisyys: ${Math.round(probWin * 100)} %`;
+        document.getElementById('drawProb').textContent = `Tasapelin todennäköisyys: ${Math.round(probDraw * 100)} %`;
+        document.getElementById('lossProb').textContent = `VPS:n tappion todennäköisyys: ${Math.round(probLoss * 100)} %`;
+    }
+
+    // Initialise
+    updatePrediction();
+    </script>
+</body>
+</html>
