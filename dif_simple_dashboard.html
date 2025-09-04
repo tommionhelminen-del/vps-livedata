@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Djurgården data - Dashboard</title>
+  <style>
+    :root {
+      --navy: #002F6C;
+      --red: #E30613;
+      --gold: #F1B434;
+      --bg: #f9fafb;
+      --card: #ffffff;
+      --muted: #475569;
+      --border: rgba(0,0,0,0.07);
+    }
+    body {
+      margin: 0; font-family: Arial, sans-serif;
+      background: var(--bg); color: #111827;
+    }
+    header {
+      background: var(--navy); color: white;
+      padding: 20px; text-align: center;
+    }
+    header h1 { margin: 0; font-size: 26px; }
+    main {
+      max-width: 1200px; margin: 0 auto; padding: 20px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+    }
+    .card h2 { font-size: 18px; margin-top: 0; }
+    .frame-wrap { aspect-ratio: 16/10; width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: white; }
+    iframe { width: 100%; height: 100%; border: none; }
+    footer { text-align: center; padding: 20px; font-size: 14px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Djurgården data - Dashboard</h1>
+  </header>
+  <main>
+    
+    <section class="card">
+      <h2>xG by Match (lines)</h2>
+      <div class="frame-wrap"><iframe src="dif_vs_opp_lines_interactive.html" loading="lazy"></iframe></div>
+    </section>
+    
+
+    <section class="card">
+      <h2>xG over Time + xG Difference</h2>
+      <div class="frame-wrap"><iframe src="dif_vs_opp_dates_and_diff_interactive.html" loading="lazy"></iframe></div>
+    </section>
+    
+
+    <section class="card">
+      <h2>xG over Time (W/D/L shaded)</h2>
+      <div class="frame-wrap"><iframe src="dif_vs_opp_lines_WDL_interactive.html" loading="lazy"></iframe></div>
+    </section>
+    
+
+    <section class="card">
+      <h2>All features: xG, Opp xG, xG diff, 3-match MA, W/D/L</h2>
+      <div class="frame-wrap"><iframe src="dif_xg_all_features_interactive.html" loading="lazy"></iframe></div>
+    </section>
+    
+  </main>
+  <footer>
+    <p>© Djurgården Data Dashboard — generated with Plotly HTML visualizations.</p>
+  </footer>
+</body>
+</html>
